@@ -20,6 +20,9 @@ class GoogleStorageAdapter extends AbstractAdapter
      */
     const STORAGE_API_URI_DEFAULT = 'https://storage.googleapis.com';
 
+    const BUCKET_ACCESS_CONTROL_FINE_GRAINED = 'fine-grained';
+    const BUCKET_ACCESS_CONTROL_UNIFORM = 'uniform';
+
     /**
      * @var StorageClient
      */
@@ -35,8 +38,10 @@ class GoogleStorageAdapter extends AbstractAdapter
      */
     protected $storageApiUri;
 
+    protected $bucketAccessControl = self::BUCKET_ACCESS_CONTROL_UNIFORM;
+
     /**
-     * @param StorageClient $storageClient
+     * @param StorageClient $torageClient
      * @param Bucket $bucket
      * @param string $pathPrefix
      * @param string $storageApiUri
@@ -140,12 +145,14 @@ class GoogleStorageAdapter extends AbstractAdapter
     {
         $options = [];
 
-        if ($visibility = $config->get('visibility')) {
-            $options['predefinedAcl'] = $this->getPredefinedAclForVisibility($visibility);
-        } else {
-            // if a file is created without an acl, it isn't accessible via the console
-            // we therefore default to private
-            $options['predefinedAcl'] = $this->getPredefinedAclForVisibility(AdapterInterface::VISIBILITY_PRIVATE);
+        if ($this->bucketAccessControl == self::BUCKET_ACCESS_CONTROL_FINE_GRAINED) {
+            if ($visibility = $config->get('visibility')) {
+                $options['predefinedAcl'] = $this->getPredefinedAclForVisibility($visibility);
+            } else {
+                // if a file is created without an acl, it isn't accessible via the console
+                // we therefore default to private
+                $options['predefinedAcl'] = $this->getPredefinedAclForVisibility(AdapterInterface::VISIBILITY_PRIVATE);
+            }
         }
 
         if ($metadata = $config->get('metadata')) {
@@ -225,10 +232,16 @@ class GoogleStorageAdapter extends AbstractAdapter
         // we want the new file to have the same visibility as the original file
         $visibility = $this->getRawVisibility($path);
 
-        $options = [
-            'name' => $newpath,
-            'predefinedAcl' => $this->getPredefinedAclForVisibility($visibility),
-        ];
+        if ($this->bucketAccessControl == self::BUCKET_ACCESS_CONTROL_FINE_GRAINED) {
+            $options = [
+                'name' => $newpath,
+                'predefinedAcl' => $this->getPredefinedAclForVisibility($visibility),
+            ];
+        } else {
+            $options = [
+                'name' => $newpath
+            ];
+        }
         $this->getObject($path)->copy($this->bucket, $options);
 
         return true;
